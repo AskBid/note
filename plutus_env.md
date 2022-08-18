@@ -34,4 +34,10 @@ $ git checkout tag-name
 
 ### Run Plutus App
 Once you are sure the `plutus-app` tag is the same one used from the plutus porject app `cabal.project` you can run `nix-shell` the plutus-app folder and go in the project diretory.
+```
+$ cabal clean; cabal update
+$ cabal build
+$ cabal repl
+```
+
 
