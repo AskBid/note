@@ -29,7 +29,7 @@ Run `nix-shell` inside plutus-app. It will take a long time if `nix.conf` was no
 Check that the tag for `plutus-app` is the correct tag used for the project you are working on shows in `project/cabal.project` at "source repository package".
 in `/plutus-app`
 ```
-$ git checkout tag-name
+$ git checkout <tag-name>
 ```
 
 ### Run Plutus App
@@ -38,6 +38,13 @@ Once you are sure the `plutus-app` tag is the same one used from the plutus porj
 $ cabal clean; cabal update
 $ cabal build
 $ cabal repl
+```
+in `MyFirstPlutusScript.hs` there is the most basic validator script, it doesn't do anything.
+This is imported in `MyFirstPlutusCompiler.hs` where it is compiled and saved as plutus core script ready to be put on chain.
+Run `writeMyFirstValidatorScript` function in the repl to compile the basic validator.
+```
+Prelude Project01.MyFirstPlutusCompiler> writeMyFirstValidatorScript
+Right ()
 ```
 
 
