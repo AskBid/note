@@ -82,6 +82,7 @@ Make sure it works by checking `cardano-node --version; cardano-cli --version`.
 >```
 >cabal build all
 >```
+>once you had to put `subdir:` to each subdirectory in `cabal.project`
 >You can now copy the executables in the location in your $PATH (usually ~/.local/bin/)
 
 <br>
