@@ -228,7 +228,7 @@ Open the script and insert the following
 
 ```json
 {
-    "keyHash": "",
+    "keyHash": "<INSERT-YOUR-HASH-HERE>",
     "type": "sig"
 }
 ```
@@ -353,7 +353,7 @@ cardano-cli transaction build-raw \
 ```bash
 cardano-cli transaction sign \
 --signing-key-file payment.skey \
-<!-- --signing-key-file policy/policy.skey \ this will be required only if the vkey used for the script hash is different from the wallet you transact from-->
+<!-- --signing-key-file policy/policy.skey \ this will be required only if the vkey used for the script hash is different from the wallet you send the transaction from-->
 --testnet-magic 2 \
 --tx-body-file tx.raw \
 --out-file tx.signed
@@ -531,15 +531,13 @@ Let's now build the transaction.
 
 ```bash
 cardano-cli transaction build \
---mainnet \
---alonzo-era \
+--testnet-magic 1 \
 --tx-in $txhash#$txix \
 --tx-out $address+$output+"$tokenamount $policyid.$tokenname" \
 --change-address $address \
 --mint="$tokenamount $policyid.$tokenname" \
 --minting-script-file $script \
 --metadata-json-file metadata.json  \
---invalid-hereafter $slotnumber \
 --witness-override 2 \
 --out-file matx.raw
 ```

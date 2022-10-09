@@ -154,6 +154,7 @@ data MyDatum = MyDatum
 ```
 
 the datum is going to be OnChain, correlated with the UTxO as if it was a native token, unlike the redeemer.
+One thing to understand is that the locker of funds will give a Datum that will be locked in the UTxO with the funds, and the Unlocker will need to provide the same Datum for the transaction to work at all. But this is only for PlutusV1, which you're covering now in this Faucet project, in PlutusV2 there are new ways to create and interact with Datum, making this constraint optional.
 
 ## Redeemer
 
@@ -439,3 +440,157 @@ feesToBuyer = (getLovelace $ fromValue valueToBuyer) >= (cancelFees dat)
 we can see that we get the lovelace value from the value sent to the buyer which needs to be larger or equal to the cancellation fee set in the datum.
 
 The `--required-signer-hash $seller_hash /` I think just binds the hash of the address that will sign the transaction to the address we want to approve the transaction, in this case the seller. Indeed from the tutorial wasn't clear but I think that `$seller_hash` is from the same address of `$address` that comes from the `payment.skey` used durign signing.
+
+## [Faucet Exercise](https://gitlab.com/gimbalabs/plutus-pbl-summer-2022/ppbl-course-02/-/tree/master/project-301-faucet)
+[Video](https://www.youtube.com/watch?v=PzlsL2qMDyY)
+
+#### [`TxInfo`](https://playground.plutus.iohkdev.io/doc/haddock/plutus-ledger/html/Ledger.html#t:TxInfo)
+
+is a fnction native to Plutus and, can provide all the information on the transaction that is interacting with the validator (see constructor).
+
+#### [`valueSpent :: TxInfo -> Value`](https://playground.plutus.iohkdev.io/doc/haddock/plutus-ledger/html/Ledger.html#v:valueSpent)
+
+#### [`Value`](https://playground.plutus.iohkdev.io/doc/haddock/plutus-ledger/html/Ledger.html#t:Value)
+
+A cryptocurrency value. This is a map from CurrencySymbols to a quantity of that currency.
+
+### [Datum and Redeemer Distinction]
+
+Guess user A locks the tokens in teh faucet contract. A doesn't know who is going to unlock this tokens. The Datum is present in each UTxO interacting with the contract, is connected to the UTxO. A can't know what to publicKey to put in the Datum that allows that publicKey to withdraw from the faucet. That's why the redeemer is a better choice in telling the contract the publicKey of whomever is trying to unlock the tokens in the contract.
+
+This pattern holds quite well in many use cases. The Datum is where the Locker (user A) gets to place some arbitrary data.
+
+Then at the time of Unlocking (say user B) the user will try to validate the logic of the validator by providing any data through the redeemer.
+
+Who provides the lock provides data for the Datum.
+
+Whoever would like to try and Unlock that, provides data through the Redeemer.
+
+View Datum like a data store and redeemer like and agent.
+For instance if you had a contract that wanted to allow only for some addresses to unlock the funds you could instead put that publicKey in teh the Datum itself at the moemnt of unlocking the funds. But that is just an example to make understand difference between Datum and Redeemer because that sort of limitations are more likely going to be made with Tokens where access is granted to holders of certain tokens as it happens in this faucet contract's code.
+
+### Faucet Instructions (Lock)
+
+[Mint tokens with native script](plutus_env.md#native-script)
+
+After the minting and some transaction you should have similar UTxOs to this
+
+```
+$ cardano-cli query utxo --address $(cat payment.addr) --testnet-magic 1
+                           TxHash                                 TxIx        Amount
+--------------------------------------------------------------------------------------
+1c2b69a490669a334a53e87b9720b53366cd009322cb0a0cf18c473da351e305     1        5000000 lovelace + TxOutDatumNone
+9f1294daa1524a72a48299db556281d76647244a3df53b5f07a1e9059f7f7b12     0        9989482553 lovelace + TxOutDatumNone
+9f1294daa1524a72a48299db556281d76647244a3df53b5f07a1e9059f7f7b12     1        2500000 lovelace + 25 07fd9522f3ea6179415f8934ce0aa71b67fac6aa6024a59013bde6d8.506f72636f526f73736f466175636574546f6b656e + TxOutDatumNone
+9f1294daa1524a72a48299db556281d76647244a3df53b5f07a1e9059f7f7b12     2        2500000 lovelace + 3300 07fd9522f3ea6179415f8934ce0aa71b67fac6aa6024a59013bde6d8.506f72636f526f73736f546f6b656e + TxOutDatumNone
+```
+
+[Compile validator.hs into a plutus.script](plutus_env.md#run-plutus-script)
+
+> You don't know how to create the right `cabal.project` and `project.cabal` files so you just copied from a ppbl repo and proceeded for a `cabal update` and `cabal build`
+
+> Token symbol in the validator code is the policyId.
+
+Once you got the plutus script in `/output` we can create the script address
+
+```bash
+cardano-cli address build \
+--payment-script-file output/faucet.plutus \
+--testnet-magic 1 \
+--out-file porco-rosso-faucet.addr
+```
+
+`addr_test1wrd5y9tudjkdcaxfy0cnuf042xlx4s9xm4xlq8pqdcyyxxsfr38fl`
+
+Let's get a datum hash (in this case we are not really using it, just an integer (168), we could experiment to use a void value instead `()`)
+
+```bash
+cardano-cli transaction hash-script-data --script-data-value <SOME NUMBER>
+```
+
+`db2b9e43ba6771c834279febfd091fd8cae78dec7ebe86fd9d729d3ba61e38e4`
+
+And now we can send the locking transaction.
+
+```bash
+SENDER=$(cat ../payment.addr)
+SENDERKEY=../payment.skey
+TXIN1=9f1294daa1524a72a48299db556281d76647244a3df53b5f07a1e9059f7f7b12#0 # no matter the order but one UTxO is for the tokens, 
+TXIN2=9f1294daa1524a72a48299db556281d76647244a3df53b5f07a1e9059f7f7b12#2 # while this UTxO is pure ADA to cover the fees, as the UTxO Token might have small ADA amount.
+CONTRACTADDR=addr_test1wrd5y9tudjkdcaxfy0cnuf042xlx4s9xm4xlq8pqdcyyxxsfr38fl
+DATUMHASH=db2b9e43ba6771c834279febfd091fd8cae78dec7ebe86fd9d729d3ba61e38e4
+ASSET=07fd9522f3ea6179415f8934ce0aa71b67fac6aa6024a59013bde6d8.506f72636f526f73736f546f6b656e
+NUM_TOKENS=3000 # how many tokens do you want to lock?
+CHANGE_TOKENS=300
+
+cardano-cli transaction build \
+--tx-in $TXIN1 \
+--tx-in $TXIN2 \
+--tx-out $CONTRACTADDR+"2000000+$NUM_TOKENS $ASSET" \
+--tx-out $SENDER+"2000000+$CHANGE_TOKENS $ASSET" \
+--tx-out-datum-hash $DATUMHASH \
+--change-address $SENDER \
+--protocol-params-file ../protocol.json \
+--out-file tx-lock.raw \
+--testnet-magic 1
+ # only if you don't send all tokens the second --tx-out shall be used.
+
+cardano-cli transaction sign \
+--signing-key-file $SENDERKEY \
+--testnet-magic 1 \
+--tx-body-file tx-lock.raw \
+--out-file tx-lock.signed
+
+cardano-cli transaction submit \
+--tx-file tx-lock.signed \
+--testnet-magic 1
+```
+
+### Faucet Instructions (UnLock)
+
+Usually we should create 
+
+When unlockign we need collateral, in case the transaction fails.
+
+```bash
+CONTRACT_TXIN=""
+AUTH_TOKEN_TXIN=""
+FEE_TXIN=""
+COLLATERAL="95b5308a55dd1648ea6e8f2325c0a7e307240aef1998777bb3ec860a3c32e55c#2"
+PLUTUS_SCRIPT_FILE=output/faucet.plutus
+ASSET="fb45417ab92a155da3b31a8928c873eb9fd36c62184c736f189d334c.7467696d62616c"
+AUTH_TOKEN="748ee66265a1853c6f068f86622e36b0dda8edfa69c689a7dd232c60.5050424c53756d6d657232303232"
+TOKENS_BACK_TO_CONTRACT=<will be the number of token in the contract, minus 175 to be withdrawn>
+CONTRACTADDR="addr_test1wrfp7hgj52px3a6lwq7sed2peqfe476sx3n2ceg0xx0vpmc2myjrk"
+DATUMHASH="2da1c63e7646ce8cc514113c66e9cefb79e482210ad1dadb51c2a17ab14cf114"
+
+cardano-cli transaction build \
+--testnet-magic 1 \
+--tx-in $AUTH_TOKEN_TXIN \
+--tx-in $FEE_TXIN \
+--tx-in $CONTRACT_TXIN \
+--tx-in-script-file $PLUTUS_SCRIPT_FILE \
+--tx-in-datum-value 1618 \
+--tx-in-redeemer-file redeemer.json \
+--tx-in-collateral $COLLATERAL \
+--tx-out $SENDER+"2000000 + 3000 $ASSET" \
+--tx-out $SENDER+"2000000 + 1 $AUTH_TOKEN" \
+--tx-out $CONTRACTADDR+"2000000 + $TOKENS_BACK_TO_CONTRACT $ASSET" \
+--tx-out-datum-hash $DATUMHASH \
+--change-address $SENDER \
+--protocol-params-file protocol.json \
+--out-file unlock.raw
+
+cardano-cli transaction sign \
+--signing-key-file $SENDERKEY \
+--testnet-magic 1 \
+--tx-body-file unlock.raw \
+--out-file unlock.signed
+
+cardano-cli transaction submit \
+--tx-file unlock.signed \
+--testnet-magic 1
+```
+
+
+
