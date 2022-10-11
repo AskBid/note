@@ -512,6 +512,9 @@ cardano-cli transaction hash-script-data --script-data-value <SOME NUMBER>
 
 And now we can send the locking transaction.
 
+> is important to notice that the `--tx-out-datum-hash` must be put after the UTxO that we want to attach the Datum to. or you will incurr in thsi Error later on `The Plutus script witness for the txin does not have a script datum (according to the UTxO).`
+> Make sure that your script address UTxO is followed by somethign similar to ` + TxOutDatumHash ScriptDataInBabbageEra "db2b9e43ba6771c834279febfd091fd8cae78dec7ebe86fd9d729d3ba61e38e4"` and not ` + TxOutDatumNone`.
+
 ```bash
 SENDER=$(cat ../payment.addr)
 SENDERKEY=../payment.skey
@@ -527,8 +530,8 @@ cardano-cli transaction build \
 --tx-in $TXIN1 \
 --tx-in $TXIN2 \
 --tx-out $CONTRACTADDR+"2000000+$NUM_TOKENS $ASSET" \
---tx-out $SENDER+"2000000+$CHANGE_TOKENS $ASSET" \
 --tx-out-datum-hash $DATUMHASH \
+--tx-out $SENDER+"2000000+$CHANGE_TOKENS $ASSET" \
 --change-address $SENDER \
 --protocol-params-file ../protocol.json \
 --out-file tx-lock.raw \
@@ -553,27 +556,30 @@ Usually we should create
 When unlockign we need collateral, in case the transaction fails.
 
 ```bash
-CONTRACT_TXIN=""
-AUTH_TOKEN_TXIN=""
-FEE_TXIN=""
+CONTRACT_TXIN="7325518aff0270f7ef019236977baa8c301e8213a632996e0852480d5df196eb#1"
+AUTH_TOKEN_TXIN="95b5308a55dd1648ea6e8f2325c0a7e307240aef1998777bb3ec860a3c32e55c#1"
+FEE_TXIN="95b5308a55dd1648ea6e8f2325c0a7e307240aef1998777bb3ec860a3c32e55c#3"
 COLLATERAL="95b5308a55dd1648ea6e8f2325c0a7e307240aef1998777bb3ec860a3c32e55c#2"
-PLUTUS_SCRIPT_FILE=output/faucet.plutus
-ASSET="fb45417ab92a155da3b31a8928c873eb9fd36c62184c736f189d334c.7467696d62616c"
-AUTH_TOKEN="748ee66265a1853c6f068f86622e36b0dda8edfa69c689a7dd232c60.5050424c53756d6d657232303232"
-TOKENS_BACK_TO_CONTRACT=<will be the number of token in the contract, minus 175 to be withdrawn>
-CONTRACTADDR="addr_test1wrfp7hgj52px3a6lwq7sed2peqfe476sx3n2ceg0xx0vpmc2myjrk"
-DATUMHASH="2da1c63e7646ce8cc514113c66e9cefb79e482210ad1dadb51c2a17ab14cf114"
+PLUTUS_SCRIPT_FILE=301-faucet/output/faucet.plutus
+ASSET="07fd9522f3ea6179415f8934ce0aa71b67fac6aa6024a59013bde6d8.506f72636f526f73736f546f6b656e"
+AUTH_TOKEN="07fd9522f3ea6179415f8934ce0aa71b67fac6aa6024a59013bde6d8.506f72636f526f73736f466175636574546f6b656e"
+TOKENS_BACK_TO_CONTRACT=267 # <will be the number of token in the contract, minus x to be withdrawn> some numbers may be off because you made a first mistake with the locking by not attaching datum correctly.
+CONTRACTADDR="addr_test1wrd5y9tudjkdcaxfy0cnuf042xlx4s9xm4xlq8pqdcyyxxsfr38fl"
+DATUMHASH="db2b9e43ba6771c834279febfd091fd8cae78dec7ebe86fd9d729d3ba61e38e4"
+SENDER="addr_test1vpjkdcxaxvt04vezk6r7vsdn22w40z094wggnpvvp47sy0cauqn90"
+
 
 cardano-cli transaction build \
 --testnet-magic 1 \
---tx-in $AUTH_TOKEN_TXIN \
 --tx-in $FEE_TXIN \
+--tx-in $AUTH_TOKEN_TXIN \
 --tx-in $CONTRACT_TXIN \
 --tx-in-script-file $PLUTUS_SCRIPT_FILE \
---tx-in-datum-value 1618 \
---tx-in-redeemer-file redeemer.json \
+--tx-in-datum-value 168 \
+--tx-in-redeemer-value 21 \
 --tx-in-collateral $COLLATERAL \
---tx-out $SENDER+"2000000 + 3000 $ASSET" \
+--required-signer unlocker.skey \
+--tx-out $SENDER+"2000000 + 33 $ASSET" \
 --tx-out $SENDER+"2000000 + 1 $AUTH_TOKEN" \
 --tx-out $CONTRACTADDR+"2000000 + $TOKENS_BACK_TO_CONTRACT $ASSET" \
 --tx-out-datum-hash $DATUMHASH \
@@ -582,7 +588,7 @@ cardano-cli transaction build \
 --out-file unlock.raw
 
 cardano-cli transaction sign \
---signing-key-file $SENDERKEY \
+--signing-key-file unlocker.skey \
 --testnet-magic 1 \
 --tx-body-file unlock.raw \
 --out-file unlock.signed
@@ -592,5 +598,86 @@ cardano-cli transaction submit \
 --testnet-magic 1
 ```
 
+```
+Command failed: transaction build  Error: The following scripts have execution failures:
+the script for transaction input 0 (in the order of the TxIds) failed with: 
+transaction input 0 (in the order of the TxIds) points to a script hash that is not known.
+```
+this seems to be an error that appears when trying to interact with a smart contract without using any of its address UTxOs.
 
+```
+Command failed: transaction build  Error: The following scripts have execution failures:
+the script for transaction input 0 (in the order of the TxIds) failed with: 
+The Plutus script evaluation failed: An error has occurred:  User error:
+The machine terminated because of an error, either from a built-in function or from an explicit use of 'error'.
+Script debugging logs: PT8
+```
+
+This error came when you didn't use the `--required-signer`. The improtant bit is the end code `PT8` that is alabel for the [error list](https://plutus.readthedocs.io/en/latest/troubleshooting.html#error-codes) you can find each code.
+The error happens because we are trying to use information from the transaction itself and read the signatories of it.
+
+```haskell
+-- from FaucetValidatorScript.hs
+info :: TxInfo
+info = scriptContextTxInfo ctx
+
+receiverPkh :: PubKeyHash
+receiverPkh = head $ txInfoSignatories info --the head failed cus the txInfoSignatories was empty. 
+```
+
+[`TxInfo`](https://playground.plutus.iohkdev.io/doc/haddock/plutus-ledger/html/Ledger.html#t:TxInfo) is a list of all the transaction attributes, the transaction taht is trying to unlock funds from the contract address.
+
+Once that was fixed you triggered a `PT5` instead, which fromt eh previous list tells `PT5: 'check' input is 'False'` which means that one of the validator's script checks has failed. In this case was that you were trying to withdraw an amount less than the minimum given as parameter during compilation
+
+```haskell
+-- from FaucetValidatorScript.hs
+outputHasFaucetToken :: Bool
+outputHasFaucetToken = (valueOf valueToReceiver (faucetTokenSymbol faucet) (faucetTokenName faucet)) >= (withdrawalAmount faucet)
+```
+
+So you changed the following
+
+```bash
+TOKENS_BACK_TO_CONTRACT=150 # given that UTxO used at contract address is 300
+--tx-out $SENDER+"2000000 + 150 $ASSET" \
+```
+
+### Faucet Instructions (UnLock) w/ Redeemer
+
+Here how the code changed
+
+```haskell
+-- ...
+newtype FaucetRedeemer = FaucetRedeemer {senderPkh :: PubKeyHash}
+
+PlutusTx.unstableMakeIsData ''FaucetRedeemer
+PlutusTx.makeLift ''FaucetRedeemer
+
+faucetValidator :: FaucetParams -> Integer -> Integer -> ScriptContext -> Bool
+faucetValidator faucet _ _ ctx =   traceIfFalse "Input needs PPBLSummer2022 token"    inputHasAccessToken &&
+                            traceIfFalse "PPBLSummer2022 token must return to sender" outputHasAccessToken &&
+                            traceIfFalse "Faucet token must be distributed to sender" outputHasFaucetToken &&
+                            traceIfFalse "Must return remaining tokens to contract"   faucetContractGetsRemainingTokens &&
+                            traceIfFalse "Do we need to check datum"                  checkDatumIsOk
+-- ...
+data FaucetTypes
+
+instance ValidatorTypes FaucetTypes where
+    type DatumType FaucetTypes = Integer
+    type RedeemerType FaucetTypes = FaucetRedeemer
+
+typedValidator :: FaucetParams -> TypedValidator FaucetTypes
+typedValidator faucet =
+  mkTypedValidator @FaucetTypes
+    ($$(PlutusTx.compile [||faucetValidator||]) `PlutusTx.applyCode` PlutusTx.liftCode faucet)
+    $$(PlutusTx.compile [||wrap||])
+  where
+    wrap = wrapValidator @Integer @FaucetRedeemer
+```
+
+Everything in the redeemer needs to be in Hex format, but luckyli the public key is already in Hex format so we can jsut use it for our redeemer file liek this
+
+```json
+{"constructor":0,"fields":[{"bytes":"5820582b004f8939a9b6f91f64db0e722672bc9e8897b130dd3f5bd29caedbc0fa6f"}]}
+```
 
