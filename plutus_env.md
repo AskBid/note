@@ -70,7 +70,7 @@ Make sure it works by checking `cardano-node --version; cardano-cli --version`.
 
 ## Upgrades
 
->If you already have `cardano-node` repo from previous built, you should be able torebuild with a new version with:
+>If you already have `cardano-node` repo from previous built, you should be able to rebuild with a new version with:
 >```
 >git fetch --all --recurse-submodules --tags
 >git tag
@@ -115,6 +115,14 @@ At that point remember to set your `$CARDANO_NODE_SOCKET_PATH` to `/tmp/forwarde
 [CSCLI](https://github.com/CardanoSharp/cscli) is a tool to use cardano-cli without the need to run a node.
 
 You can now [build an address](https://developers.cardano.org/docs/stake-pool-course/handbook/keys-addresses/) with `cardano-cli`.
+
+### p.s.
+
+To get auto-complete with the `cardano-cli` (by pressing TAB) just run the following command
+
+```
+source <(cardano-cli --bash-completion-script cardano-cli)
+```
 
 # Front End
 
@@ -523,6 +531,8 @@ Create a json file for the policy.script `nvim policy.script`.
 }
 ```
 
+The same script you get the policyID from is the script you'll use as `--mint-script-file`. So the above script will give you the policyID with the command `cardano-cli transaction policyid --script-file my-first-policy.script`. And will be the same file used as `$script` below.
+
 ```
 echo -n "MyFirstNFT"  | xxd -ps
 ```
@@ -537,7 +547,7 @@ cardano-cli transaction build \
 --change-address $address \
 --mint="$tokenamount $policyid.$tokenname" \
 --minting-script-file $script \
---metadata-json-file metadata.json  \
+--metadata-json-file metadata.json \
 --witness-override 2 \
 --out-file matx.raw
 ```
@@ -565,7 +575,8 @@ Estimated transaction fee: Lovelace 185081
 cardano-cli transaction sign  \
 --signing-key-file ../payment.skey  \
 --signing-key-file policy.skey  \
---mainnet --tx-body-file tx.raw  \
+--testnet-magic 1 \
+--tx-body-file tx.raw  \
 --out-file tx.signed
 ```
 

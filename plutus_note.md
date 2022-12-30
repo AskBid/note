@@ -156,6 +156,8 @@ data MyDatum = MyDatum
 the datum is going to be OnChain, correlated with the UTxO as if it was a native token, unlike the redeemer.
 One thing to understand is that the locker of funds will give a Datum that will be locked in the UTxO with the funds, and the Unlocker will need to provide the same Datum for the transaction to work at all. But this is only for PlutusV1, which you're covering now in this Faucet project, in PlutusV2 there are new ways to create and interact with Datum, making this constraint optional.
 
+One can create a script (Validator) with some parameters that uses a certain script address, but whomever sends UTxOs to that address will attach a datum hash of the appropriate datum he wants (in relation to the script) and people that will be able to use that UTxO will need to use the appropriate Datum. So you can have different users, using the same script address, but inteeracting separately on differetn UTxOs using different Datums (Data).
+
 ## Redeemer
 
 The *redeemer* is also required when building a *validator*, but unlike the *datum* whose hash is compared to the *datum* held at the script prior to implementing the script validation process, **the redeemer could be set as an arbitrary value unless the validator expects it to be of a precise value**.
@@ -184,6 +186,7 @@ subgraph OffChain
     J
     V
     R
+    X
 end
 subgraph OnChain
     C
@@ -197,6 +200,7 @@ J(JSON of Datum) --> |hash-data| C(Transaction UTxO w/ DatumHash)
 J --> |types are in validtr code| A
 C --> |Lock UTxO| P(Address is also OnChain already)
 B --> |no action, addr already onchain but empty| P
+X(Code of how to handle CONTEXT) --> A
 ```
 
 Important to notice here that from the same contract I will always get the same address. For instance the most basic plutus contract `mkValidator _ _ _ = ()` that is basicaly empty, if compiled and then checked on the UTxOs at its address, will surprisingly give back a lot of UTxOs because there is many people using it as a first test locking money in it. Because of Haskell determinism.

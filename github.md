@@ -33,6 +33,9 @@ $ git commit -m "Initial commit"
 $ git status
 	#
 
+$ git restore .
+	# gets rid of all the changes appearing in `git status`
+
 $ git commit -a			
 	# to avoid the staging (add) step, only if a first staging already happened
 
@@ -76,6 +79,9 @@ $ git diff --staged
 
 $ git branch
 	# show branches
+
+$ git branch -la
+	# list all
 
 $ git branch <name-of-new-branch>
 	#
