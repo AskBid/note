@@ -1,3 +1,4 @@
+```haskell
 {- TERMINOLOGY / ANATOMY -}
 func :: a -> a -- < [TYPE]
 func a = a
@@ -69,6 +70,9 @@ f x = x + 1
 g x = x / 3
 (f.g) 5 -- 2.666
 (g.f) 5 -- 2.0
+-- =
+g (f 5)
+
 {--}
 
 {- composition -}
@@ -452,3 +456,134 @@ zipWith zip [[0,0,0],[1,1,1],[2,2,2]] [[0,1,2],[0,1,2],[0,1,2]]
 --[[(0,0),(0,1),(0,2)]
 --,[(1,0),(1,1),(1,2)]
 --,[(2,0),(2,1),(2,2)]]
+```
+
+# [Functor](https://mmhaskell.com/monads/functors)
+
+A functor is a mapping. said in a longer fashion:
+
+> A Functor allows us to transform the underlying values with a function, so that the values are all updated, but the structure of the container is the same
+
+Said in a computer science way: A Functor is any type that can act as a generic container.
+
+Haskell represents the concept of a functor with the Functor typeclass. This typeclass has a single required function `fmap`.
+
+```haskell
+class Functor f where
+  fmap :: (a -> b) -> f a -> f b
+```
+
+We can see that `fmap` is a higher ordered function taking two inputs.
+
+  1. A transformation function from an a type to a b type (a and b can be the same if we want)
+  2. A functor containing values of type a
+
+The output it produces is a new functor containing values of type b. This new functor has exactly the same structure (or shape) as the input functors; all that has changed is that each element has been modified by the input function.
+
+So is important to understand that `f` isn't a function, but is a type that takes a type parameter.
+
+And that should make you understand that `f` is just a container type that contains a cetains type, that is a parameter therefor generic. Generic Container.
+
+You can make a Functor instance for any parameterized type that can act as a container. The only thing you really need to fill in is the fmap implementation. It will just look like this:
+
+```haskell
+instance Functor MyType where
+  fmap f (MyType ...) = ...
+```
+
+# [Applicative](https://mmhaskell.com/monads/applicatives)
+
+like functor but instead of only one function, you actually have a container of unctions too, that gets applied to all elements.
+
+```haskell
+class (Functor f) => Applicative f where
+  pure :: a -> f a
+  (<*>) :: f (a -> b) -> f a -> f b
+```
+
+```haskell
+>> [(+2), (*3)] <*> [4, 6]
+[6, 8, 12, 18]
+```
+
+```haskell
+>> pure (+) <*> [1, 2, 3] <*> [4, 5, 6]
+[5, 6, 7, 6, 7, 8, 7, 8, 9]
+>> (+) <$> [1, 2, 3] <*> [4, 5, 6]
+[5, 6, 7, 6, 7, 8, 7, 8, 9]
+```
+
+Notice that `<$>` is the same as `fmap` the functor function.
+
+
+```haskell
+>> let f a b c = a + b + c
+>> pure f <*> [1, 2, 3] <*> [10, 15] <*> [100, 200]
+[111, 211, 116, 216, 112, 212, 117, 217, 113, 213, 118, 218]
+```
+
+
+# Array `Data.Array`
+
+`Array i e` is a type. It's defined in a module which does not export its data constructors, so we don't get access to those. This is unlike the `Maybe a` type for which we get access to the `Nothing` and `Just` constructors.
+
+Hence, to create an array value we need to rely on the functions exported by the module. There is indeed a function for that, named array. This function is sometimes referred to as a "smart" constructor, since unlike a (regular) constructor it performs some sanity checks before constructing the value.
+
+Anyway, it is meant to be used like this:
+
+```haskell
+array (startPos, endPos) [ (startPos, value0), (nextPos, value1), ..., (endPos, valueLast) ]
+```
+
+if you board only contains position (0,0) (should it be so?) then it should be created as
+
+```haskell
+array ((0,0),(0,0)) [ ((0,0), Just (Piece White Pawn)) ]
+```
+
+If instead you need to create a 8x8 board, you will need a longer list for that.
+
+```haskell
+array ((0,0),(7,7)) [ ((0,0), Just (Piece White Pawn)) , ....
+```
+
+If you need to place only a few pieces in a large board, it might be more convenient to simply create an empty board and then update it with the few pieces. E.g.
+
+```haskell
+let emptyB = array ((0,0),(7,7)) [ ((x,y), Nothing) | x<-[0..7], y<-[0..7] ]
+    myB = emptyB // [ ((5,5), Just (Piece White Pawn)) ]
+in ...
+```
+
+Here I used the `//` operator to create a new board with the same pieces as emptyB, except for those positions and values in the list.
+
+In `chesshs` ibrary teh Board is defined as 
+
+```haksell
+data Board = Board { turn :: Color
+                   , castlingAvail :: String
+                   , enpassant :: Maybe (Int, Int)
+                   , board :: Array (Int, Int) (Maybe Piece)
+                   } deriving (Eq)
+```
+
+is to notice that here is the Array type that is defined. But you won't create such Array with the Array consructor becasue it is not revealed. Instead they will let you create the Array of type `(Int, Int) (Maybe Piece)` through the method `array` which has a different type signature.
+
+so Array has a type of
+
+```haskell
+type Array :: * -> * -> *
+data Array i e
+```
+
+There isn't only one concrete type, because this type is parametrized, requiring two concrete type before having the third concrete type as output (Array).
+
+And that's what the board argument is showing, that `i e` as `(Int, Int) (Maybe Piece)`.
+
+The `array` method is what creates that Array.
+
+```haskell
+array :: (i, i) -> [(i, e)] -> Array i e
+```
+
+which is exactly what we used to create the Board above.

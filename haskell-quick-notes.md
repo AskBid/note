@@ -36,6 +36,10 @@
 
 [Two Type Parameters Functor](#two-type-parameters-functor) &nbsp;&nbsp;&nbsp;&nbsp;  `(b -> c) -> (Either a) b -> (Either a) c`
 
+## Monad
+
+[Intro to Monads](#monad) &nbsp;&nbsp;&nbsp;&nbsp;  `do k2 <- lookup k1 al ; return ("You " ++ k2)`
+
 <br>
 
 ***
@@ -72,7 +76,7 @@ tell (x:y:[]) = "The list has two elements: " ++ show x ++ " and " ++ show y
 tell (x:y:_) = "This list is long. The first two elements are: " ++ show x ++ " and " ++ show y  
 ```
 
-### As Patterns
+### [As Patterns](https://stackoverflow.com/questions/1153465/what-does-the-symbol-mean-in-reference-to-lists-in-haskell)
 [index](#index)
 
 ```haskell
@@ -2585,3 +2589,329 @@ instance Functor (Barry a b) where
 ```
 
 > the above  is hard to truly understand and in the end not is usefull as we are practising type-foo, not really things we'll encounter often.
+
+## [(!)](https://stackoverflow.com/questions/993112/what-does-the-exclamation-mark-mean-in-a-haskell-declaration)
+
+it's a strictness declaration. Basically, it means that it must be evaluated to what's called "weak head normal form" when the data structure value is created.
+
+```haskell
+f x !y = x*y
+```
+
+`f (1+1) (2+2)` will return the thunk `(1+1)*4`.
+
+it forces the execution earlier on at thunk level.
+
+## [Vectors](https://mmhaskell.com/data-structures/vector)
+
+in Vectors `!` is used to take an element at a certain index.
+
+## Monads
+
+The monad is a type wiht an *AND THEN* operator.
+
+```haskell
+class Monad m where
+    (>>=)  :: m a -> (a -> m b) -> m b
+    return :: a -> m a
+```
+
+Imagine givng instructions to get out of a room an operator. 
+
+a: Do this
+
+b: and then?
+
+a: Do that
+
+b: and then?
+
+a: Do thut
+
+b: and then?
+
+a: return. 
+
+<br>
+
+now imagine a series of instructions do get out of a room:
+
+a: Check the desk, reverse the letters on the next clue
+
+c: Open the reward.
+
+a: So you look in the drawer
+
+c: in the drawer there is a key that says unlock the door
+
+a: You can unlock the door.
+
+This process is elegantly coded wiht a Monad.
+
+Let put the lues in a [location, clue] pairs.
+
+```haskell
+al :: [(String, String)]
+al = [("desk",   "reward")
+     ,("key",    "door"  )
+     ,("door",   "escape")
+     ,("drawer", "key"   )]
+```
+
+To find the next function we can simply use the Prelude function `lookup` to find the next clue.
+
+```haskell
+lookup :: Eq a => [(a, b)] -> Maybe b
+```
+
+`lookup` returns `Nothing` if nothing was found.
+
+Let's build out own lookup4 that tries to simulate the task of getting out of the room.
+
+```haskell
+lookup4 :: String -> [(String, String)] -> Maybe String
+lookup4 k1 al = lookup k1 al
+```
+
+we look for the first key in `al`.
+
+In the case nothing is found we return `Nothing`.
+
+```haskell
+lookup4 :: String -> [(String, String)] -> Maybe String
+lookup4 k1 al = case lookup k1 al of
+    Nothing -> Nothing
+```
+
+if instead the `lookup k1 al` returns a `Just key` we do another lookup:
+
+```haskell
+lookup4 :: String -> [(String, String)] -> Maybe String
+lookup4 k1 al = case lookup k1 al of
+    Nothing -> Nothing
+    Just k2 -> lookup (reverse k2) al
+```
+
+But this second lookup may in turn fail or return another key.
+
+```haskell
+lookup4 :: String -> [(String, String)] -> Maybe String
+lookup4 k1 al = case lookup k1 al of
+    Nothing -> Nothing
+    Just k2 -> case lookup (reverse k2) al of
+        Nothing -> Nothing
+        Just k3 -> lookup k3 al
+```
+
+and so on all the way to the 4th key
+
+```haskell
+lookup4 :: String -> [(String, String)] -> Maybe String
+lookup4 k1 al = case lookup k1 al of
+    Nothing -> Nothing
+    Just k2 -> case lookup (reverse k2) al of
+        Nothing -> Nothing
+        Just k3 -> case lookup k3 al of
+            Nothing -> Nothing
+            Just k4 -> case lookup k4 of
+                Nothing -> Nothing
+                Just s -> Just ("You " ++ s)
+```
+
+In the last key 4 we return a message of success if the key was found or Nothing.
+
+We can see that there is a pattern repeating
+
+```haskell
+Nothing -> Nothing
+    Just k* -> case lookup k* al of
+```
+
+but te `reverse` spoils it in the second key.
+
+At the basic level we are usign this logic:
+
+- Check the `Maybe`
+- If is `Nothing` quit.
+- Otherwise extract Key from the `Just` and pass it to the next step.
+
+let's introduce a `ifJust` function that does exactly that.
+
+```haskell
+ifJust :: Maybe String -> (String -> Maybe String) -> Maybe String
+ifJust Nothing _  = Nothing
+ifJust (Just k) f = f k
+```
+
+It takes a `Maybe String` resulting from the latest `lookup` and a function that takes a `String` to look up and produces a `Maybe String`.
+Overall it will also produce a `Maybe String` itself.
+
+We see that the implementation is quite simple, it returns Nothing if Nothing was found as in the Maybe given was Nothing, otherwise it applies the String given from the Maybe to the function supplied as second argument.
+
+```haskell
+lookup4 :: String -> [(String, String)] -> Maybe String
+lookup4 k1 al = case lookup k1 al of
+    Nothing -> Nothing
+    Just k2 -> case lookup (reverse k2) al of
+        Nothing -> Nothing
+        Just k3 -> case lookup k3 al of
+            Nothing -> Nothing
+            Just k4 -> case lookup k4 of
+                Nothing -> Nothing
+                Just s -> Just ("You " ++ s)
+```
+
+```haskell
+ifJust :: Maybe String -> (String -> Maybe String) -> Maybe String
+ifJust Nothing _  = Nothing
+ifJust (Just k) f = f k
+
+lookup4 :: String -> [(String, String)] -> Maybe String
+lookup4 k1 al = 
+    ifJust (lookup k1 al) 
+        (\k2 -> ifJust (lookup (reverse k2) al) 
+        (\k3 -> ifJust (lookup k3 al) 
+        (\k4 -> ifJust (Just k4 al) 
+        (\s  -> Just ("You " ++ s)))))
+```
+
+It becomes more readable if we use `ifJust` as a binary operator ``ifJust``
+
+```haskell
+ifJust :: Maybe String -> (String -> Maybe String) -> Maybe String
+ifJust Nothing _  = Nothing
+ifJust (Just k) f = f k
+
+lookup4 :: String -> [(String, String)] -> Maybe String
+lookup4 k1 al = 
+    lookup k1 al                  `ifJust`  
+    \k2 -> lookup (reverse k2) al `ifJust`  
+    \k3 -> lookup k3 al           `ifJust`  
+    \k4 -> lookup k4 al           `ifJust`
+    \s  -> Just ("You " ++ s)
+```
+
+The above is basically similar to
+
+```js
+lookup(k1, al)
+    .then(k2 -> lookup(reverse(k2), al))
+    .then(k3 -> lookup(k3, al))
+    .then(k4 -> lookup(k4, al))
+    .then(s -> just("you" ++ s))
+    .catch(() -> null)
+```
+
+The central operation of a Monad is a function called **bind** `>>=` which type signature matches that of our `ifJust`.
+
+```haskell
+(>>=) :: Monad m => m a -> (a -> m b) -> m b
+```
+
+```haskell
+ifJust :: Maybe String -> (String -> Maybe String) -> Maybe String
+```
+
+So we can avoid to use `ifJust` and use the bind function directly `>>=`.
+
+```haskell
+lookup4 :: String -> [(String, String)] -> Maybe String
+lookup4 k1 al = 
+    lookup k1 al                  >>=  
+    \k2 -> lookup (reverse k2) al >>=  
+    \k3 -> lookup k3 al           >>=  
+    \k4 -> lookup k4 al           >>=
+    \s  -> Just ("You " ++ s)
+```
+
+> Notice that `Maybe` in an instance of the `Monad` typeclass
+
+```haskell
+instance Monad Maybe where
+    Nothing  >>= _ = Nothing
+    (Just x) >>= k = k x
+``` 
+
+Using Monads is such a convenient and common thing that we actually have used already. Haskell has a simple syntax for them, with the `do` blocks.
+
+> wrong use of `do` block:
+```haskell
+lookup4 :: String -> [(String, String)] -> Maybe String
+lookup4 k1 al = do lookup k1 al 
+                   k2 -> lookup (reverse k2) al
+                   k3 -> lookup k3 al
+                   k4 -> lookup k4 al
+                   s  -> Just ("You " ++ s)
+```
+
+The `do` block automagically inserts the lambda `\` and bind `>>=` opration for you.
+
+**But** the only difference is that you write the **argument** of the next step **before** each step rather than after.
+
+> almost correct use:
+```haskell
+lookup4 :: String -> [(String, String)] -> Maybe String
+lookup4 k1 al = do k2 <- lookup k1 al 
+                   k3 <- lookup (reverse k2) al
+                   k4 <- lookup k3 al
+                   s  <- lookup k4 al
+                   Just ("You " ++ s)
+```
+
+That last line won't work, but `Monad` defines the operation `return`, which promotes a normal value into the Monad type.
+
+```haskell
+class Applicative m => Monad m where
+  (>>=) :: m a -> (a -> m b) -> m b
+  (>>) :: m a -> m b -> m b
+  return :: a -> m a
+```
+
+```haskell
+instance Monad Maybe where
+    Nothing  >>= _ = Nothing
+    (Just x) >>= k = k x
+    return x       = Just x
+```
+
+so to fix that we use `return` instead of `Just`
+
+> correct use:
+```haskell
+lookup4 :: String -> [(String, String)] -> Maybe String
+lookup4 k1 al = do k2 <- lookup k1 al 
+                   k3 <- lookup (reverse k2) al
+                   k4 <- lookup k3 al
+                   s  <- lookup k4 al
+                   return ("You " ++ s)
+```
+
+Here is the final version that is the clearest because it focuses on the consequential charateristic of this algorithm.
+
+Magically all the error handling is being relegated to the last `Maybe` in lookup4 type signature.
+
+And what about the `>>` definition in `Monad`?
+
+```haskell
+class Applicative m => Monad m where
+  (>>=) :: m a -> (a -> m b) -> m b
+  (>>) :: m a -> m b -> m b
+  return :: a -> m a
+```
+
+`>>` is a bind (`>>=`) variant that discards the result from the previous computation (the one followed by `.then()` in JS).
+
+This is mainly used for put string functions that just return units `()`.
+
+```haskell
+hello :: IO ()
+hello = putStr "Hello " >> putStrLn "World!"
+```
+
+Even if using `do` with put string, the oprator used will be `>>` and not `>>=`.
+
+```haskell
+hello :: IO ()
+hello = do putStr "Hello "
+           putStrLn "World!"
+```

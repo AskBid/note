@@ -45,6 +45,12 @@ $ git checkout <tag-name>
 Once you are sure the `plutus-app` tag is the same one used from the plutus porject app `cabal.project` you can run `nix-shell` in the plutus-app folder and go in the project diretory (we cloned [gimbalabs pbl repo](https://gitlab.com/gimbalabs/plutus-pbl-summer-2022/ppbl-course-02)).
 
 ```bash
+#first
+nix-shell
+#in plutus-app
+```
+
+```bash
 $ cabal clean; cabal update
 $ cabal build
 $ cabal repl
@@ -197,7 +203,7 @@ cardano-cli transaction sign \
 
 ## Retrive Metadata
 
-The Metadata is resides with the transaction not with the Utxo. You need `cardano-db-sync` to query the metadata in transactions or you can query a `cardano-graphql` served from a cardano-db-sync node.
+The Metadata resides with the transaction not with the Utxo. You need `cardano-db-sync` to query the metadata in transactions or you can query a `cardano-graphql` served from a cardano-db-sync node.
 Here an example of a GraphQL query that looks for a metadata based on the key number used, it will return the items in chrnological order.
 
 ```graphql
@@ -587,4 +593,45 @@ cardano-cli transaction submit --tx-file tx.signed --testnet-magic 1
 cardano-cli query utxo --address $(cat ../payment.addr) --testnet-magic 1
 ```
 
+# Plutus Pioneer
+
+Go in project (week0x) open the `cabal.project` and one of the first repo is going to be `location: https://github.com/input-output-hk/plutus-apps.git` copy the tag `tag: 41149926c108c71831cfe8d244c83b0ee4bf5c8a` then move into `/plutus-app` repository in your machine and `$ git checkout 41149926c108c71831cfe8d244c83b0ee4bf5c8a`.
+
+Now you can launch `$ nix-shell`.
+
+Once inside `[nix-shell]` you can go to the project repo directory and do a `cabal build`.
+
+You can play with a `cabal repl` now.
+
+You can also create haddock documentation for the libraries back to `/plutus-app` inside `[nix-shell]` you can run `build-and-serve-docs`.
+
+Go to the http provided and add `haddock` `http://0.0.0.0:8002/haddock/`
+
+## Plutus Playground
+
+After have build the On-Chain and Off-Chain code.
+
+```
+cd plutus-app/
+nix-shell
+cd plutus-playground-client/
+plutus-playground-server
+```
+
+Is a directory, but inside `nix-shell` will launch the server by calling it.
+
+now open a new shell, and run again `nix-shell` always from `plutus-app`.
+
+```
+cd plutus-playground-client
+npm start
+```
+
+At some point it will output something like `Project is running at https://localhost:8009/`
+
+You can see the playground from that address, you may need to accept some risk warnings from the browser.
+
+Delete the example code already present in the playground editor and paste in the auction contract.
+
+Remove the `Module` header that exports types.
 
