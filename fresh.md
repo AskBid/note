@@ -78,6 +78,10 @@ export default function id(props:any) {
 }
 ```
 
+### Layouts Files
+
+Let's create a `./components/layouts.tsx` 
+
 
 
 

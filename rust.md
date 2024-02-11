@@ -1,3 +1,14 @@
+# Index
+## [HashMaps](#hashmaps) &nbsp;&nbsp;&nbsp;&nbsp;  `{"blue": 0}`
+
+[Adding a Key and Value Only If a Key Isn’t Present](#adding-a-key-and-value-only-if-a-key-isnt-present)
+
+[Update Value Based on Old Value](#update-value-based-on-old-value)
+
+## [Errors and the `?` Operator](#errors-and-the--operator) &nbsp;&nbsp;&nbsp;&nbsp;  `.parse::<i32>()?;`
+
+## [TRAITS_](#traits) &nbsp;&nbsp;&nbsp;&nbsp;  `impl Animal for Sheep {`
+
 # `mut`
 ```rust
 let mut x: i32 = 1;
@@ -261,10 +272,27 @@ All of this shenanigans about are useful for safety, so that you don't end up wi
 to allocate to the heap what would have gone to the stack.
 
 # `*y` derefencing
+https://www.youtube.com/watch?v=UKPpGaqk3ik
+
 ```rust
 let mut y: Box::<i32> = Box::new(1);
 
 *y = 4;    // without the * derefencing you couldn't have assigned a type stack i32 to a variable with type heap Box<>
+```
+
+it is really calling the `deref` method of the deref trait and derefencing that.
+```rust
+*y 
+// ==
+*(y.deref())
+
+impl<T> Deref for MyBox<T> {
+  type Target = T;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
 ```
 
 the `*` makes you access the value and not the pointer.
@@ -711,6 +739,30 @@ let rect1 = Rectangle {
 
 dbg!(&rect1); // Print debug info to stderr ofthe whole rect1
 ```
+
+Can be used to debug large expressions inline, without having to pick it apart into separate variable declarations.
+
+Assume we have the following expression:
+```rust
+"hello world".split(' ').collect::<Vec<_>>().join("-")
+```
+Now we would like to see what the call to collect returns. We could do the following:
+
+```rust
+let my_temporary_debug_variable = "hello world".split(' ').collect::<Vec<_>>();
+println!("{:?}", my_temporary_debug_variable);
+my_temporary_debug_variable.join("-")
+```
+But that's tedious! We don't wan't to rewrite our nice expressions just to be able to debug them. Please welcome to the stage: `dbg!`
+
+```rust
+dbg!(
+    "hello world".split(' ').collect::<Vec<_>>()
+).join("-")
+```
+
+The whitespace is only for clarity. You can wrap any expression in `dbg!()`, which will print that value (with debug-formatting). Afterwards you can keep using the value in a larger expression, as if the dbg! wasn't even there.
+
 
 # Partial Move of `struct`
 ```rust
@@ -1415,6 +1467,8 @@ let floats: [Array<f64, 2>; 3] = [
 ```
 
 # TRAITS
+[index](#index)
+
 Methods to be implemented for **multiple types** to provide common functionalities/behaviours between them.
 
 Shared behaviour in an abstract way.
@@ -1675,6 +1729,42 @@ impl ops::Add<Bar> for Foo {
     fn add(self, _rhs: Bar) -> FooBar {
         FooBar
     }
+}
+```
+
+# Errors and the `?` Operator
+[index](#index)
+```rust
+fn halves_if_even(i: i32) -> Result<i32, Error> {
+    if i % 2 == 0 {
+        Ok(i / 2)
+    } else {
+        Err(/* something */)
+    }
+}
+
+fn do_the_thing(i: i32) -> Result<i32, Error> {
+    let i = match halves_if_even(i) {
+        Ok(i) => i,
+        Err(e) => return Err(e),
+    };
+
+    // use `i`
+}
+```
+
+This is great because:
+
+when writing the code you cannot accidentally forget to deal with the error,
+when reading the code you can immediately see that there is a potential for error right here.
+It's less than ideal, however, in that it is very verbose. This is where the question mark operator ? comes in.
+
+The above can be rewritten as:
+```rust
+fn do_the_thing(i: i32) -> Result<i32, Error> {
+    let i = halves_if_even(i)?;
+
+    // use `i`
 }
 ```
 
@@ -1975,7 +2065,7 @@ just a way to make sure that the lifetimes of the scopes of variable are what we
 Another way to think of it is that a lifetime `'a` really represents a locatio in the memory, and with that we make sure that a parameter netering the function that used memory `'a` is still the same memory that will be output. Value may be different, but we make sure that we are using memory that is valid and present.
 
 ```rust
-fn lognest<'a>(s1: &'a str, s2: &'a str) -> &'a str {}
+fn longest<'a>(s1: &'a str, s2: &'a str) -> &'a str {}
 
 fn main() {
   let x: &'x str = "hi";
@@ -1992,6 +2082,354 @@ fn main() {
 'y |"hello" |  | -> 'l1   |
 'z |"hey"   |             |-> 'l2
 ```
+
+# Crates, Modules, Packages
+A Crate is the smallest part of code that the compiler can consider at a time
+
+There are **Crate Binaries** and **Crate Libraries**
+
+Crate binaries must have a main while libraries don't have it, they just share fucntionalities with multiple projects.
+
+A **Package** is a bundle of one or more crates. Cargo is a package of one crate library that the cargo binary depends on.
+A Package need a **Cargo.toml** that lists all the Crates required to be built.
+
+Once a module is part of your crate, you can refer to code in that module from anywhere else in that same crate, as long as the privacy rules allow, using the path to the code. For example, an `Asparagus` type in the garden vegetables module would be found at `crate::garden::vegetables::Asparagus`.
+
+```
+backyard
+├── Cargo.lock
+├── Cargo.toml
+└── src
+    ├── garden
+    │   └── vegetables.rs
+    ├── garden.rs
+    └── main.rs
+```
+
+```rust
+use crate::garden::vegetables::Asparagus;
+let plant = Asparagus {};
+```
+
+## `src/lib.rs` and `src/main.rs`
+Create a new library named `restaurant` by running `cargo new restaurant --lib`. This will be out library Crate.
+
+in `src/lib.rs`
+```rust
+mod front_of_house {
+    mod hosting {
+        fn add_to_waitlist() {}
+
+        fn seat_at_table() {}
+    }
+
+    mod serving {
+        fn take_order() {}
+
+        fn serve_order() {}
+
+        fn take_payment() {}
+    }
+}
+```
+By using modules, we can group related definitions together and name why they’re related. Easier to navigate.
+
+`src/lib.rs` and `src/main.rs` are called the roots because anything in either of them creates a module called **crate** which is the root for every module structure coming after in the project.
+
+so even in our restuarant library crate case:
+```
+crate
+ └── front_of_house
+     ├── hosting
+     │   ├── add_to_waitlist
+     │   └── seat_at_table
+     └── serving
+         ├── take_order
+         ├── serve_order
+         └── take_payment
+```
+
+## Paths `crate::` and `pub`
+Can be Absolute or Relative, can access things in the same level, otherwise can only access things that aren't private `pub`.
+
+```rust
+mod front_of_house {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+    }
+}
+
+pub fn eat_at_restaurant() {
+    // Absolute path
+    crate::front_of_house::hosting::add_to_waitlist();
+
+    // Relative path
+    front_of_house::hosting::add_to_waitlist();
+}
+```
+
+## `super::`
+We can construct relative paths that begin in the parent module, rather than the current module or the crate root, by using `super` at the start of the path. This is like starting a filesystem path with the `..` syntax.
+
+`src/lib.rs`
+```rust
+fn deliver_order() {}
+
+mod back_of_house {
+    fn fix_incorrect_order() {
+        cook_order();
+        super::deliver_order();
+    }
+
+    fn cook_order() {}
+}
+```
+
+## `use`
+Having to write out the paths to call functions can feel inconvenient and repetitive. Fortunately we can create a shortcut to a path with the `use` keyword.
+
+```rust
+mod front_of_house {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+    }
+}
+
+use crate::front_of_house::hosting;
+
+pub fn eat_at_restaurant() {
+    hosting::add_to_waitlist();
+}
+```
+
+Adding use and a path in a scope is similar to creating a symbolic link in the filesystem.
+
+> Note that `use` only creates the shortcut for the particular **scope** in which the use occurs.
+
+> Specifying the parent module when calling the function makes it clear that the function isn’t locally defined. for `struct` and `enum` we don't use the idiomatic form instead (`use crate::front_of_house::hosting:add_to_waitlist;`).
+
+## `use` .. `as`
+```rust
+use std::fmt::Result;
+use std::io::Result as IoResult;
+
+fn function1() -> Result {
+    // --snip--
+}
+
+fn function2() -> IoResult<()> {
+    // --snip--
+}
+```
+
+## [`pub use`](#https://doc.rust-lang.org/book/ch07-04-bringing-paths-into-scope-with-the-use-keyword.html#re-exporting-names-with-pub-use)
+When we bring a name into scope with the use keyword, the name available in the new scope is private. To enable the code that calls our code to refer to that name as if it had been defined in that code’s scope, we can combine pub and use.
+
+## Packages
+We programmed a guessing game project that used an external package called `rand` to get random numbers. To use `rand` in our project, we added this line to `Cargo.toml`:
+
+```
+rand = "0.8.5"
+```
+
+Adding `rand` as a dependency in `Cargo.toml` tells Cargo to download the rand package and any dependencies from crates.io and make rand available to our project.
+
+Then, to bring rand definitions into the scope of our package, we added a `use` line starting with the name of the crate, rand, and listed the items we wanted to bring into scope.
+```rust
+use rand::Rng;
+
+fn main() {
+    let secret_number = rand::thread_rng().gen_range(1..=100);
+}
+```
+Members of the Rust community have made many packages available at crates.io, and pulling any of them into your package involves these same steps: listing them in your package’s Cargo.toml file and using use to bring items from their crates into scope.
+
+Note that the standard `std` library is also a crate that’s external to our package. Because the standard library is shipped with the Rust language, we don’t need to change Cargo.toml to include `std`. But we do need to refer to it with use to bring items from there into our package’s scope. For example, with `HashMap` we would use this line:
+
+```
+use std::collections::HashMap;
+```
+
+## Nested Paths `use` `{}`
+```rust
+// --snip--
+use std::cmp::Ordering;
+use std::io;
+// --snip--
+
+// --snip--
+use std::{cmp::Ordering, io};
+// --snip--
+```
+
+```rust
+use std::io;
+use std::io::Write;
+
+use std::io::{self, Write};
+```
+
+## The Global Operator `use std::collections::*;`
+
+## Separate Modules into Different Files
+from 
+
+---------------------------------------------------------
+`src/lib.rs`
+```rust
+mod front_of_house {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+    }
+}
+
+pub use crate::front_of_house::hosting;
+
+pub fn eat_at_restaurant() {
+    hosting::add_to_waitlist();
+}
+```
+---------------------------------------------------------
+
+
+to 
+
+---------------------------------------------------------
+`src/lib.rs`
+```rust
+mod front_of_house;
+
+pub use crate::front_of_house::hosting;
+
+pub fn eat_at_restaurant() {
+    hosting::add_to_waitlist();
+}
+```
+
+`src/front_of_house.rs`
+```rust
+pub mod hosting {
+    pub fn add_to_waitlist() {}
+}
+```
+---------------------------------------------------------
+
+or
+
+---------------------------------------------------------
+`src/lib.rs`
+```rust
+mod front_of_house;
+
+pub use crate::front_of_house::hosting;
+
+pub fn eat_at_restaurant() {
+    hosting::add_to_waitlist();
+}
+```
+
+`src/front_of_house.rs`
+```rust
+pub mod hosting;
+```
+
+`src/front_of_house/hosting.rs`
+```rust
+pub fn add_to_waitlist() {}
+```
+---------------------------------------------------------
+
+Note that you only need to load a file using a `mod` declaration once in your module tree. Once the compiler knows the file is part of the project (and knows where in the module tree the code resides because of where you’ve put the `mod` statement), other files in your project should refer to the loaded file’s code using a path to where it was declared,
+
+`mod` is not an “include” operation that you may have seen in other programming languages.
+
+If we instead put hosting.rs in the src directory, the compiler would expect the hosting.rs code to be in a hosting module declared in the crate root, and not declared as a child of the front_of_house module. The compiler’s rules for which files to check for which modules’ code means the directories and files more closely match the module tree.
+
+We’ve moved each module’s code to a separate file, and the module tree remains the same. The function calls in eat_at_restaurant will work without any modification, even though the definitions live in different files. 
+
+Note that the `pub use crate::front_of_house::hosting` statement in `src/lib.rs` also hasn’t changed, nor does `use` have any impact on what files are compiled as part of the crate. The `mod` keyword declares modules, and Rust looks in a file with the same name as the module for the code that goes into that module.
+
+Rust lets you split a package into multiple crates and a crate into modules so you can refer to items defined in one module from another module. You can do this by specifying absolute or relative paths. These paths can be brought into scope with a `use` statement so you can use a shorter path for multiple uses of the item in that scope. Module code is private by default, but you can make definitions public by adding the `pub` keyword.
+
+# HashMaps
+[index](#index)
+```rust
+use std::collections::HashMap;
+
+let mut scores = HashMap::new();
+
+scores.insert(String::from("Blue"), 10);
+scores.insert(String::from("Yellow"), 50);
+
+let team_name = String::from("Blue");
+let score = scores.get(&team_name).copied().unwrap_or(0);
+
+for (key, value) in &scores {
+    println!("{key}: {value}");
+}
+
+// => {"Blue": 10, "Yellow: 50,}
+```
+
+For types that implement the Copy trait, like i32, the values are copied into the hash map. For owned values like String, the values will be moved and the hash map will be the owner of those values, as demonstrated in Listing 8-22.
+
+```rust
+use std::collections::HashMap;
+
+let field_name = String::from("Favorite color");
+let field_value = String::from("Blue");
+
+let mut map = HashMap::new();
+map.insert(field_name, field_value);
+// field_name and field_value are invalid at this point, try using them and
+// see what compiler error you get!
+```
+
+If we insert references to values into the hash map, the values won’t be moved into the hash map. The values that the references point to must be valid for at least as long as the hash map is valid.
+
+## Adding a Key and Value Only If a Key Isn’t Present 
+```rust
+use std::collections::HashMap;
+
+let mut scores = HashMap::new();
+scores.insert(String::from("Blue"), 10);
+
+scores.entry(String::from("Yellow")).or_insert(50);
+scores.entry(String::from("Blue")).or_insert(50);
+
+println!("{:?}", scores);
+```
+
+## Update Value Based on Old Value
+```rust
+    use std::collections::HashMap;
+
+    let text = "hello world wonderful world";
+
+    let mut map = HashMap::new();
+
+    for word in text.split_whitespace() {
+        println!("{:?}", map.entry(word));
+        let count = map.entry(word).or_insert(0); 
+        // insert zero if entry is not found, count is modifing same memory value related to HashMap value (is a &mut value)
+        println!("{count}");
+        *count += 1; // dereferencing that &mut to modifiy the actual value
+        // &mut goes out of scope here.
+    }
+
+    println!("{:?}", map);
+
+// Entry(VacantEntry("hello"))
+// 0
+// Entry(VacantEntry("world"))
+// 0
+// Entry(VacantEntry("wonderful"))
+// 0
+// Entry(OccupiedEntry { key: "world", value: 1, .. })
+// 1
+// => {"world": 2, "hello": 1, "wonderful": 1}
+```
+
 
 # Concepts
 
@@ -2019,3 +2457,42 @@ In Rust, immutability and mutability refer to the ability to modify the contents
 The `string_uppercase` function takes ownership of the `String` and make it capitalised. However, the immutability or mutability of the original `greeting` variable in the `main` function is not affected by passing ownership. <ins>The original `greeting` variable is immutable, and that immutability is not changed by the function. What changes is ownership.</ins>
 
 When you transfer ownership to a function, you lose access to the original variable in the calling scope, regardless of whether the variable was initially defined as mutable or immutable.
+
+## `format!`
+
+```rust 
+#[cfg(test)]
+mod tests {
+    use super::*;
+  #[test]
+  fn unit_structs() {
+      // TODO: Instantiate a unit-like struct!
+      #[derive(Debug)]
+      struct UnitLikeStruct;
+      let unit_like_struct = UnitLikeStruct;
+      let message = format!("{:?}s are fun!", unit_like_struct);
+
+      assert_eq!(message, "UnitLikeStructs are fun!");
+  }
+}
+```
+
+# `.map()`
+
+You need to use `.collect()` to make the `map()` work as it is lazy.
+
+```rust
+pub fn capitalize_words_vector(words: &[&str]) -> Vec<String> {
+    words.iter().map(|w| capitalize_first(w)).collect()
+}
+```
+
+# `.collect()`
+transforms an `Iterator` into a collection.
+
+# `join("")`
+if you are joining a `Vec<String>` you still need to specify what to join them with, always need a `String` as argument.
+
+```rust
+words.iter().map(|w| capitalize_first(w)).collect()
+```
